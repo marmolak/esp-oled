@@ -241,7 +241,6 @@ void messageReceived(String &topic, String &payload)
 
 void setup_MQTT()
 {
-    //client.begin("192.168.32.39", net);
     client.begin(Config::MQTT::broker_host, net);
     client.onMessage(messageReceived);
 
@@ -258,8 +257,6 @@ void setup_MQTT()
           return;
         }
     }
-
-  //client.subscribe(F("/logo"));
 }
 
 
@@ -271,7 +268,7 @@ void setup_MQTT()
 
     for (uint8_t i = 0; i < 20; ++i)
     {
-        if (WiFi.status() == WL_CONNECTED)
+        if (WiFi.isConnected())
         {
             return true;
         }
@@ -356,11 +353,10 @@ void connect_store_maybe_restore_wifi_settings()
 void setup()
 {
     Serial.begin(115200);
+    //gdbstub_init();
 
     // don't mess with sdk flash
     WiFi.persistent(false);
-    //gdbstub_init();
-
     connect_store_maybe_restore_wifi_settings();
 
     setup_OTA();
@@ -379,8 +375,6 @@ void setup()
         client.publish("home/1st/workplace1/consolemaster/logo", state_name);
         client.disconnect();
     }
-
-    //irsend.begin();
 
     sleep_me(20e6);
 }
