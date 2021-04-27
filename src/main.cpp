@@ -14,9 +14,6 @@
 
 #include <AsyncDelay.h>
 
-#include <IRremoteESP8266.h>
-#include <IRsend.h>
-
 #include "Config/Wifi.hpp"
 #include "Config/MQTT.hpp"
 
@@ -248,34 +245,52 @@ void setup_MQTT()
     client.begin(Config::MQTT::broker_host, net);
     client.onMessage(messageReceived);
 
-    while (!client.connect("consolemaster", "public", "public"))
+    for (uint8_t p = 0; p < 20; ++p)
     {
+        const bool connected = client.connect("consolemaster", "public", "public");
+        if (connected)
+        {
+            return;
+        }
         delay(1000);
+        if (!WiFi.isConnected()) {
+          // give up we don't have mqtt
+          return;
+        }
     }
 
   //client.subscribe(F("/logo"));
 }
 
 
-void connect_wifi(int32_t channel = 666, const uint8_t* bssid = nullptr)
+[[nodiscard]] bool connect_wifi(int32_t channel = -1, const uint8_t* bssid = nullptr)
 {
+    // We can pass default argument values to begin() because there is check for unvalid
+    // channel and bssid values
+    WiFi.begin(FPSTR(Config::Wifi::ssid), FPSTR(Config::Wifi::password), channel, bssid);
 
-    if (bssid == nullptr)
+    for (uint8_t i = 0; i < 20; ++i)
     {
-        WiFi.begin(FPSTR(Config::Wifi::ssid), FPSTR(Config::Wifi::password));
-    } else {
-        WiFi.begin(FPSTR(Config::Wifi::ssid), FPSTR(Config::Wifi::password), channel, bssid);
-    }
-
-    while (WiFi.status() != WL_CONNECTED)
-    {
+        if (WiFi.status() == WL_CONNECTED)
+        {
+            return true;
+        }
         delay(500);
     }
+
+    return false;
 }
 
 } // end namespace
 
-bool connect_wifi_with_rtc_settings()
+
+[[noreturn]] void sleep_me(const uint64_t time_us)
+{
+    Serial.flush();
+    ESP.deepSleep(time_us, WAKE_RF_DEFAULT);
+}
+
+bool try_connect_wifi_with_rtc_settings()
 {
     const struct rst_info *const actual_rst_info = ESP.getResetInfoPtr();
     if (actual_rst_info->reason != REASON_DEEP_SLEEP_AWAKE)
@@ -283,7 +298,7 @@ bool connect_wifi_with_rtc_settings()
         return false;
     }
 
-    Serial.println(F("Wake from sleep, restoring from WIFI settigs from RTC memory."));
+    Serial.println(F("Woke from deep sleep. Restoring WIFI settings from RTC memory."));
     uint32_t *data = reinterpret_cast<uint32_t *>(&my_rtc_data);
     ESP.rtcUserMemoryRead(0, data, sizeof(my_rtc_data_t));
 
@@ -296,23 +311,31 @@ bool connect_wifi_with_rtc_settings()
     state = my_rtc_data.last_state;
     // connect to wifi with stored informations
     uint8_t *bssid = reinterpret_cast<uint8_t *>(&(my_rtc_data.bssid[0]));       
-    connect_wifi(my_rtc_data.channel, bssid);
+    const bool connected = connect_wifi(my_rtc_data.channel, bssid);
+    return connected;
 }
 
 void connect_store_maybe_restore_wifi_settings()
 {
-    const bool restored = connect_wifi_with_rtc_settings();
-    if (restored)
+    const bool wifi_restored_and_connected = try_connect_wifi_with_rtc_settings();
+    if (wifi_restored_and_connected)
     {
-      return;
+        return;
     }
 
     Serial.println(F("Normal boot..."));
 
     // connect to wifi
-    connect_wifi();
+    const bool wifi_connected = connect_wifi();
+    if (!wifi_connected)
+    {
+        // ok.. maybe is wifi down so we just going to sleep for some time
+        Serial.println(F("Unable to access wifi network. Going to sleep for some time."));
+        sleep_me(3800e6);
+        return;
+    }
 
-    // get wifi info
+    // get stored wifi info
     void *const bssid_stored = reinterpret_cast<void *>(&my_rtc_data.bssid);
     const uint8_t *const bssid_actual = WiFi.BSSID();
 
@@ -333,6 +356,9 @@ void connect_store_maybe_restore_wifi_settings()
 void setup()
 {
     Serial.begin(115200);
+
+    // don't mess with sdk flash
+    WiFi.persistent(false);
     //gdbstub_init();
 
     connect_store_maybe_restore_wifi_settings();
@@ -344,19 +370,19 @@ void setup()
 
     u8g2.begin();
 
-    //state = logo_state::THREEDO;
-
     setup_MQTT();
 
-
     show_logo();
-    client.publish("home/1st/workplace1/consolemaster/logo", state_name);
-    client.disconnect();
+
+    if (client.connected())
+    {
+        client.publish("home/1st/workplace1/consolemaster/logo", state_name);
+        client.disconnect();
+    }
 
     //irsend.begin();
 
-    ESP.deepSleep(10e6, WAKE_RF_DEFAULT);
-
+    sleep_me(20e6);
 }
 
 void loop()
