@@ -17,6 +17,9 @@
 #include "Config/Wifi.hpp"
 #include "Config/MQTT.hpp"
 
+#include "Common/Arch/ESP/Utils.hpp"
+#include "Common/Arch/ESP/RTCWifi.hpp"
+
 #include "sega.hpp"
 #include "3do.hpp"
 #include "nintendo.hpp"
@@ -44,8 +47,6 @@ void operator delete[](void *ptr)
 namespace
 {
 
-  constexpr uint32_t magic = 0xDEADBEEFu;
-
   // MQTT related stuff
   WiFiClient net;
   MQTTClient client;
@@ -56,41 +57,28 @@ namespace
   */
 
 
-  enum class logo_state : uint8_t
-  {
+enum class logo_state : uint8_t
+{
     NOTHING     = 0,
     THREEDO     = 1,
     SEGA        = 2,
     NINTENDO    = 3,
     XBOX        = 4,
     PLAYSTATION = 5,
-  };
+};
 
-  String state_name = "3DO";
-  logo_state state = logo_state::THREEDO;
+String state_name = "3DO";
+logo_state state = logo_state::THREEDO;
 
-  struct alignas(uint32_t) my_rtc_data_t
-  {
-      // wifi info
-      int32_t channel;
+struct alignas(uint32_t) my_rtc_data_t : ExtdESP::rtc_data_base_t
+{
+    // last logo state
+    logo_state last_state;
+};
 
-      // bssid is only 6 bytes long however, slots in RTC memory is just 32 bit wide slots
-      uint32_t bssid[2];
-
-      uint32_t wifi_stored;
-
-      // last logo state
-      logo_state last_state;
-
-  } my_rtc_data;
-  static_assert(sizeof(my_rtc_data) <= 512, "There is only 512 bytes free in RTC memory.");
-
-
-const uint16_t kPanasonicAddress = 0x4004;   // Panasonic address (Pre data)
-const uint32_t kPanasonicPower = 0x100BCBD;  // Panasonic Power button
+ExtdESP::RTCWifi<my_rtc_data_t> rtc_wifi; 
 
 U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
-
 
 void drawLogothreedo() {
   u8g2.firstPage();
@@ -129,14 +117,12 @@ void drawLogops() {
 
 void update_state_to(const logo_state new_state)
 {
-    state = new_state;
+    auto &rtc_data = rtc_wifi.get_rtc_data();
 
-    const uint32_t offset = offsetof(my_rtc_data_t, last_state) / sizeof(uint32_t); 
-
-    uint32_t tmp_state = static_cast<uint32_t>(new_state);
-    ESP.rtcUserMemoryWrite(offset, &tmp_state, sizeof(tmp_state));
+    my_rtc_data_t &data = rtc_data.get();
+    data.last_state = new_state;
+    rtc_data.commit();
 }
-
 
 void show_logo()
 {
@@ -260,114 +246,29 @@ void setup_MQTT()
 }
 
 
-[[nodiscard]] bool connect_wifi(int32_t channel = -1, const uint8_t* bssid = nullptr)
-{
-    // We can pass default argument values to begin() because there is check for unvalid
-    // channel and bssid values
-    WiFi.begin(FPSTR(Config::Wifi::ssid), FPSTR(Config::Wifi::password), channel, bssid);
-
-    for (uint8_t i = 0; i < 20; ++i)
-    {
-        if (WiFi.isConnected())
-        {
-            return true;
-        }
-        delay(500);
-    }
-
-    return false;
-}
-
 } // end namespace
-
-
-[[noreturn]] void sleep_me(const uint64_t time_us)
-{
-    Serial.flush();
-    ESP.deepSleep(time_us, WAKE_RF_DEFAULT);
-}
-
-bool try_connect_wifi_with_rtc_settings()
-{
-    const struct rst_info *const actual_rst_info = ESP.getResetInfoPtr();
-    if (actual_rst_info->reason != REASON_DEEP_SLEEP_AWAKE)
-    {
-        return false;
-    }
-
-    Serial.println(F("Woke from deep sleep. Restoring WIFI settings from RTC memory."));
-    uint32_t *data = reinterpret_cast<uint32_t *>(&my_rtc_data);
-    ESP.rtcUserMemoryRead(0, data, sizeof(my_rtc_data_t));
-
-    if (my_rtc_data.wifi_stored != magic)
-    {
-        Serial.println(F("RTC memory doesn't contain valid magic words."));
-        return false;
-    }
-
-    state = my_rtc_data.last_state;
-    // connect to wifi with stored informations
-    uint8_t *bssid = reinterpret_cast<uint8_t *>(&(my_rtc_data.bssid[0]));       
-    const bool connected = connect_wifi(my_rtc_data.channel, bssid);
-    return connected;
-}
-
-void connect_store_maybe_restore_wifi_settings()
-{
-    const bool wifi_restored_and_connected = try_connect_wifi_with_rtc_settings();
-    if (wifi_restored_and_connected)
-    {
-        return;
-    }
-
-    Serial.println(F("Normal boot..."));
-
-    // connect to wifi
-    const bool wifi_connected = connect_wifi();
-    if (!wifi_connected)
-    {
-        // ok.. maybe is wifi down so we just going to sleep for some time
-        Serial.println(F("Unable to access wifi network. Going to sleep for some time."));
-        sleep_me(3800e6);
-        return;
-    }
-
-    // get stored wifi info
-    void *const bssid_stored = reinterpret_cast<void *>(&my_rtc_data.bssid);
-    const uint8_t *const bssid_actual = WiFi.BSSID();
-
-    my_rtc_data.wifi_stored = 0;
-    if (bssid_actual != NULL)
-    {
-        Serial.println(F("Storing wifi info."));
-        memcpy(bssid_stored, bssid_actual, 6);
-        my_rtc_data.channel = WiFi.channel();
-        my_rtc_data.wifi_stored = magic;
-    }
-
-    uint32_t *data = reinterpret_cast<uint32_t *>(&my_rtc_data);
-    ESP.rtcUserMemoryWrite(0, data, sizeof(my_rtc_data_t));
-}
-
 
 void setup()
 {
     Serial.begin(115200);
     //gdbstub_init();
 
-    // don't mess with sdk flash
-    WiFi.persistent(false);
-    connect_store_maybe_restore_wifi_settings();
+    rtc_wifi.connect();
 
-    setup_OTA();
-    MDNS.begin(Config::Wifi::mdns_hostname);
-    MDNS.update();
-    ArduinoOTA.handle();
-
-    u8g2.begin();
+    if (rtc_wifi.is_restored())
+    {
+        auto &rtc_data = rtc_wifi.get_rtc_data();
+        const my_rtc_data_t &data = rtc_data.get();
+        state = data.last_state;
+    }
+//    setup_OTA();
+//    MDNS.begin(Config::Wifi::mdns_hostname);
+//    MDNS.update();
+//    ArduinoOTA.handle();
 
     setup_MQTT();
 
+    u8g2.begin();
     show_logo();
 
     if (client.connected())
@@ -376,7 +277,7 @@ void setup()
         client.disconnect();
     }
 
-    sleep_me(20e6);
+    ExtdESP::Utils::sleep_me(20e6);
 }
 
 void loop()
