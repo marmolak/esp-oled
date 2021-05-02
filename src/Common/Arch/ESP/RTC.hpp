@@ -15,10 +15,17 @@ class RTC
     public:
 
         // It's your responsibility to commit data to memory...
-        Storage &get()
+        Storage &get() 
         {
             return rtc_data;
         }
+
+        /*
+        const Storage &get() const
+        {
+            return rtc_data;
+        }
+        */
 
         void commit()
         {

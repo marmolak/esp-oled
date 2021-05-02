@@ -121,6 +121,7 @@ void update_state_to(const logo_state new_state)
 
     my_rtc_data_t &data = rtc_data.get();
     data.last_state = new_state;
+    state = new_state;
     rtc_data.commit();
 }
 
@@ -253,7 +254,7 @@ void setup()
     Serial.begin(115200);
     //gdbstub_init();
 
-    rtc_wifi.connect();
+    rtc_wifi.connect(Config::Wifi::ssid, Config::Wifi::password);
 
     if (rtc_wifi.is_restored())
     {

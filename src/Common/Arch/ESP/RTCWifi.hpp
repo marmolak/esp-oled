@@ -1,13 +1,12 @@
 #pragma once
 
 #include <stdint.h>
-#include <string.h>
+#include <WString.h>
 
 #include <ESP8266WiFi.h>
 
 #include "Common/Arch/ESP/RTC.hpp"
 #include "Common/Arch/ESP/Utils.hpp"
-#include "Config/Wifi.hpp"
 
 namespace ExtdESP {
 
@@ -28,18 +27,18 @@ static_assert(sizeof(rtc_data_base_t) <= 512, "There is only 512 bytes free in R
 
 
 template <typename Storage>
-class RTCWifi
+class RTCWifi final
 {
     static_assert(std::is_base_of<rtc_data_base_t, Storage>::value, "You need to use ExtdESP::my_rtc_data_base_t as a base of your data type.");
     static_assert(sizeof(Storage) <= 512, "There is only 512 bytes free in RTC memory.");
 
     public:
-        void connect()
+        void connect(const String &ssid, const String &password)
         {
             // don't mess with sdk flash
             WiFi.persistent(false);
 
-            const bool wifi_restored_and_connected = try_connect_wifi_with_rtc_settings();
+            const bool wifi_restored_and_connected = try_connect_wifi_with_rtc_settings(ssid, password);
             if (wifi_restored_and_connected)
             {
                 return;
@@ -48,7 +47,7 @@ class RTCWifi
             Serial.println(F("Normal boot..."));
 
             // connect to wifi
-            const bool wifi_connected = connect_wifi();
+            const bool wifi_connected = connect_wifi(ssid, password);
             if (!wifi_connected)
             {
                 // ok.. maybe is wifi down so we just going to sleep for some time
@@ -94,11 +93,11 @@ class RTCWifi
     private:
         RTC<Storage> rtc_data;
 
-        [[nodiscard]] bool connect_wifi(int32_t channel = -1, const uint8_t* bssid = nullptr)
+        [[nodiscard]] bool connect_wifi(const String &ssid, const String &password, int32_t channel = -1, const uint8_t* bssid = nullptr)
         {
             // We can pass default argument values to begin() because there is check for unvalid
             // channel and bssid values
-            WiFi.begin(FPSTR(Config::Wifi::ssid), FPSTR(Config::Wifi::password), channel, bssid);
+            WiFi.begin(ssid, password, channel, bssid);
 
             for (uint8_t i = 0; i < 20; ++i)
             {
@@ -112,7 +111,7 @@ class RTCWifi
             return false;
         }
 
-        bool try_connect_wifi_with_rtc_settings()
+        bool try_connect_wifi_with_rtc_settings(const String &ssid, const String &password)
         {
             const struct rst_info *const actual_rst_info = ESP.getResetInfoPtr();
             if (actual_rst_info->reason != REASON_DEEP_SLEEP_AWAKE)
@@ -133,7 +132,7 @@ class RTCWifi
 
             // connect to wifi with stored informations
             uint8_t *bssid = reinterpret_cast<uint8_t *>(&(data.bssid[0]));       
-            const bool connected = connect_wifi(data.channel, bssid);
+            const bool connected = connect_wifi(ssid, password, data.channel, bssid);
             return connected;
         }
 };
