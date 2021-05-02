@@ -20,12 +20,10 @@ class RTC
             return rtc_data;
         }
 
-        /*
         const Storage &get() const
         {
             return rtc_data;
         }
-        */
 
         void commit()
         {

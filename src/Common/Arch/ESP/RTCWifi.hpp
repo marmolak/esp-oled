@@ -84,7 +84,7 @@ class RTCWifi final
             return rtc_data;
         }
 
-        bool is_restored()
+        bool is_restored() const
         {
             const Storage &data = rtc_data.get();
             return (data.wifi_stored == ExtdESP::magic);
