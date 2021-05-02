@@ -25,6 +25,7 @@
 #include "nintendo.hpp"
 #include "xbox.hpp"
 #include "pngegg.hpp"
+#include "videopac.hpp"
 
 // Workaround for newest c++14 version
 void operator delete(void *ptr, size_t size)
@@ -65,6 +66,7 @@ enum class logo_state : uint8_t
     NINTENDO    = 3,
     XBOX        = 4,
     PLAYSTATION = 5,
+    VIDEOPAC    = 6,
 };
 
 String state_name = "3DO";
@@ -112,6 +114,13 @@ void drawLogops() {
   u8g2.firstPage();
  do {
    u8g2.drawXBMP(0, 0, pngegg_width, pngegg_height, pngegg_bits); 
+ } while ( u8g2.nextPage() );
+}
+
+void drawLogoVideopac() {
+  u8g2.firstPage();
+ do {
+   u8g2.drawXBMP(0, 0, videopac_width, videopac_height, videopac_bits); 
  } while ( u8g2.nextPage() );
 }
 
@@ -170,6 +179,15 @@ void show_logo()
         {
             drawLogops();
             state_name = "PLAYSTATION";
+            update_state_to(logo_state::VIDEOPAC);
+            return;
+        }
+        break;
+
+        case logo_state::VIDEOPAC:
+        {
+            drawLogoVideopac();
+            state_name = "VIDEOPAC";
             update_state_to(logo_state::THREEDO);
             return;
         }
