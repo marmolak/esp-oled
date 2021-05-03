@@ -121,7 +121,7 @@ class RTCWifi final
 
             Serial.println(F("Woke from deep sleep. Restoring WIFI settings from RTC memory."));
 
-            rtc_data.restore();
+            auto &rtc_data = get_rtc_data();
             Storage &data = rtc_data.get();
 
             if (data.wifi_stored != ExtdESP::magic)
