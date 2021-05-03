@@ -272,14 +272,14 @@ void setup()
     Serial.begin(115200);
     //gdbstub_init();
 
-    rtc_wifi.connect(Config::Wifi::ssid, Config::Wifi::password);
-
+    auto &rtc_data = rtc_wifi.get_rtc_data();
     if (rtc_wifi.is_restored())
     {
-        auto &rtc_data = rtc_wifi.get_rtc_data();
         const my_rtc_data_t &data = rtc_data.get();
         state = data.last_state;
     }
+    rtc_wifi.connect(Config::Wifi::ssid, Config::Wifi::password);
+
 //    setup_OTA();
 //    MDNS.begin(Config::Wifi::mdns_hostname);
 //    MDNS.update();
