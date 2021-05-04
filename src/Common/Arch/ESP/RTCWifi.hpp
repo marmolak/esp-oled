@@ -12,27 +12,27 @@ namespace ExtdESP {
 
 constexpr const uint32_t magic = 0xDEADBEEFu;
 
-struct alignas(uint32_t) rtc_data_base_t
-{
-    // wifi info
-    int32_t channel;
-
-    // bssid is only 6 bytes long however, slots in RTC memory is just 32 bit wide slots
-    uint32_t bssid[2];
-
-    // magic number
-    uint32_t wifi_stored;
-};
-static_assert(sizeof(rtc_data_base_t) <= 512, "There is only 512 bytes free in RTC memory.");
-
-
 template <typename Storage>
 class RTCWifi final
 {
-    static_assert(std::is_base_of<rtc_data_base_t, Storage>::value, "You need to use ExtdESP::my_rtc_data_base_t as a base of your data type.");
-    static_assert(sizeof(Storage) <= 512, "There is only 512 bytes free in RTC memory.");
+    private:
+        struct alignas(uint32_t) rtc_data_base_t : Storage
+        {
+            // wifi info
+            int32_t channel;
+
+            // bssid is only 6 bytes long however, slots in RTC memory is just 32 bit wide slots
+            uint32_t bssid[2];
+
+            // magic number
+            uint32_t wifi_stored;
+        };
+        static_assert(sizeof(rtc_data_base_t) <= 512, "There is only 512 bytes free in RTC memory.");
+
+        RTC<rtc_data_base_t> rtc_data;
 
     public:
+
         void connect(const String &ssid, const String &password)
         {
             // don't mess with sdk flash
@@ -57,7 +57,7 @@ class RTCWifi final
             }
 
             // get stored wifi info
-            Storage &data = rtc_data.get();
+            rtc_data_base_t &data = rtc_data.get();
 
             void *const bssid_stored = reinterpret_cast<void *>(&data.bssid);
             const uint8_t *const bssid_actual = WiFi.BSSID();
@@ -74,7 +74,7 @@ class RTCWifi final
             rtc_data.commit();
         }
 
-        RTC<Storage> &get_rtc_data()
+        RTC<rtc_data_base_t> &get_rtc_data()
         {
             if (!is_restored())
             {
@@ -86,12 +86,11 @@ class RTCWifi final
 
         bool is_restored() const
         {
-            const Storage &data = rtc_data.get();
+            const rtc_data_base_t &data = rtc_data.get();
             return (data.wifi_stored == ExtdESP::magic);
         }
 
     private:
-        RTC<Storage> rtc_data;
 
         [[nodiscard]] bool connect_wifi(const String &ssid, const String &password, int32_t channel = -1, const uint8_t* bssid = nullptr)
         {
@@ -122,7 +121,7 @@ class RTCWifi final
             Serial.println(F("Woke from deep sleep. Restoring WIFI settings from RTC memory."));
 
             auto &rtc_data = get_rtc_data();
-            Storage &data = rtc_data.get();
+            rtc_data_base_t &data = rtc_data.get();
 
             if (data.wifi_stored != ExtdESP::magic)
             {
@@ -136,6 +135,5 @@ class RTCWifi final
             return connected;
         }
 };
-
 
 } // end of namespace

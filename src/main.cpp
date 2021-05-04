@@ -72,7 +72,7 @@ enum class logo_state : uint8_t
 String state_name = "3DO";
 logo_state state = logo_state::THREEDO;
 
-struct alignas(uint32_t) my_rtc_data_t : ExtdESP::rtc_data_base_t
+struct alignas(uint32_t) my_rtc_data_t
 {
     // last logo state
     logo_state last_state;
