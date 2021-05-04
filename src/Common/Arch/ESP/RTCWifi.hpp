@@ -28,6 +28,7 @@ class RTCWifi final
             uint32_t wifi_stored;
         };
         static_assert(sizeof(rtc_data_base_t) <= 512, "There is only 512 bytes free in RTC memory.");
+        static_assert(std::is_trivial<Storage>::value, "Storage tempalte argument must be trivial type aka plain old structure.");
 
         RTC<rtc_data_base_t> rtc_data;
 
