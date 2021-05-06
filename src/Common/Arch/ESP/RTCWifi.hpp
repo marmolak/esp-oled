@@ -12,7 +12,7 @@
 #include "Common/Arch/ESP/RTC.hpp"
 #include "Common/Arch/ESP/Utils.hpp"
 
-namespace ExtdESP {
+namespace CoolESP {
 
 constexpr const uint32_t magic = 0xDEADBEEFu;
 
@@ -57,7 +57,7 @@ class RTCWifi final
             {
                 // ok.. maybe is wifi down so we just going to sleep for some time
                 Serial.println(F("Unable to access wifi network. Going to sleep for some time."));
-                ExtdESP::Utils::sleep_me(3800e6);
+                CoolESP::Utils::sleep_me(3800e6);
                 return;
             }
 
@@ -73,7 +73,7 @@ class RTCWifi final
                 Serial.println(F("Storing wifi info."));
                 ::memcpy(bssid_stored, bssid_actual, 6);
                 data.channel = WiFi.channel();
-                data.wifi_stored = ExtdESP::magic;
+                data.wifi_stored = CoolESP::magic;
             }
 
             rtc_data.commit();
@@ -92,7 +92,7 @@ class RTCWifi final
         bool is_restored() const
         {
             const rtc_data_base_t &data = rtc_data.get();
-            return (data.wifi_stored == ExtdESP::magic);
+            return (data.wifi_stored == CoolESP::magic);
         }
 
     private:
@@ -128,7 +128,7 @@ class RTCWifi final
             auto &rtc_data = get_rtc_data();
             rtc_data_base_t &data = rtc_data.get();
 
-            if (data.wifi_stored != ExtdESP::magic)
+            if (data.wifi_stored != CoolESP::magic)
             {
                 Serial.println(F("RTC memory doesn't contain valid magic words."));
                 return false;

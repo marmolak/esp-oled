@@ -78,7 +78,7 @@ struct alignas(uint32_t) my_rtc_data_t
     logo_state last_state;
 };
 
-ExtdESP::RTCWifi<my_rtc_data_t> rtc_wifi; 
+CoolESP::RTCWifi<my_rtc_data_t> rtc_wifi; 
 
 U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 
@@ -296,7 +296,7 @@ void setup()
         client.disconnect();
     }
 
-    ExtdESP::Utils::sleep_me(20e6);
+    CoolESP::Utils::sleep_me(20e6);
 }
 
 void loop()

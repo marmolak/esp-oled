@@ -5,7 +5,7 @@
 
 #include <ESP.h>
 
-namespace ExtdESP {
+namespace CoolESP {
 
 template <typename Storage>
 class RTC

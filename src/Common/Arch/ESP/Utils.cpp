@@ -1,7 +1,7 @@
 #include "Common/Arch/ESP/Utils.hpp"
 #include <Esp.h>
 
-namespace ExtdESP { namespace Utils {
+namespace CoolESP { namespace Utils {
 
 [[noreturn]] void sleep_me(const uint64_t time_us)
 {
