@@ -1,6 +1,6 @@
 #include <Arduino.h>
 
-#include <GDBStub.h>
+// #include <GDBStub.h>
 
 #include <ArduinoOTA.h>
 #include <ESP8266WiFi.h>
