@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <type_traits>
 
-#include <ESP8266WiFi.h>
+#include <ESP.h>
 
 namespace ExtdESP {
 
